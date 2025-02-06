@@ -138,6 +138,24 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
+// Route för att hantera Verify Token
+const VERIFY_TOKEN = 'borje#balder123'; // Din Verify Token
+
+app.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  // Verifiera att token matchar
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    console.log('Webhook verifierad.');
+    res.status(200).send(challenge); // Skicka tillbaka challenge för att bekräfta
+  } else {
+    console.error('Verify Token matchade inte.');
+    res.status(403).send('Verify Token matchade inte.');
+  }
+});
+
 // Dummy-route för att hålla servern igång
 app.get('/', (req, res) => {
   res.send('Bot is running!');
@@ -336,7 +354,4 @@ if (!process.env.DISCORD_BOT_TOKEN) {
 }
 
 // Logga in på boten
-client.login(process.env.DISCORD_BOT_TOKEN).catch((error) => {
-  console.error('FEL: Kunde inte logga in på Discord:', error.message);
-  process.exit(1); // Avsluta programmet om inloggningen misslyckas
-});
+client.login(process.env.DISCORD_BOT
