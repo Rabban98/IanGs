@@ -1,8 +1,12 @@
 require('dotenv').config(); // Läser in miljövariabler från .env-filen (valfritt)
 const { Client, GatewayIntentBits } = require('discord.js');
+const express = require('express');
+const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const axios = require('axios');
+
+// Skapa en Express-app för att hantera webhook och andra routes
+const app = express();
 
 // Sökväg till JSON-filen
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -107,6 +111,43 @@ async function getInstagramAccessToken() {
     throw error;
   }
 }
+
+// Route för att hantera Instagram OAuth-callback
+app.get('/auth/callback', async (req, res) => {
+  const code = req.query.code; // Hämta "code" från query-parametrar
+
+  try {
+    // Byt ut "code" mot en Access Token
+    const response = await axios.post('https://api.instagram.com/oauth/access_token', null, {
+      params: {
+        client_id: INSTAGRAM_APP_ID,
+        client_secret: INSTAGRAM_APP_SECRET,
+        grant_type: 'authorization_code',
+        redirect_uri: 'https://your-ngrok-url.ngrok-free.app/auth/callback', // Ersätt med din ngrok-URL
+        code: code,
+      },
+    });
+
+    const accessToken = response.data.access_token;
+    console.log('Access Token:', accessToken);
+
+    res.send('Du har lyckats länka ditt Instagram-konto!');
+  } catch (error) {
+    console.error('Ett fel uppstod vid hämtning av Access Token:', error.response?.data || error.message);
+    res.status(500).send('Ett fel uppstod.');
+  }
+});
+
+// Dummy-route för att hålla servern igång
+app.get('/', (req, res) => {
+  res.send('Bot is running!');
+});
+
+// Starta servern på port 3000
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
 
 // Skapa Discord-klienten
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
