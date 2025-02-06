@@ -354,4 +354,13 @@ if (!process.env.DISCORD_BOT_TOKEN) {
 }
 
 // Logga in på boten
-client.login(process.env.DISCORD_BOT
+if (!process.env.DISCORD_BOT_TOKEN) {
+  console.error('FEL: DISCORD_BOT_TOKEN saknas. Boten kan inte logga in på Discord.');
+  process.exit(1); // Avsluta programmet om Discord-token saknas
+}
+
+// Logga in på boten
+client.login(process.env.DISCORD_BOT_TOKEN).catch((error) => {
+  console.error('FEL: Kunde inte logga in på Discord:', error.message);
+  process.exit(1); // Avsluta programmet om inloggningen misslyckas
+});
