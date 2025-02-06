@@ -139,7 +139,7 @@ app.get('/auth/callback', async (req, res) => {
 });
 
 // Route för att hantera Verify Token
-const VERIFY_TOKEN = 'borje#balder123'; // Din Verify Token
+const VERIFY_TOKEN = 'borje_balder123'; // Uppdaterat Verify Token
 
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -161,8 +161,10 @@ app.get('/', (req, res) => {
   res.send('Bot is running!');
 });
 
-// Starta servern på port 3000
+// Ange porten som servern ska lyssna på
 const PORT = process.env.PORT || 3000;
+
+// Starta servern
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
@@ -314,39 +316,32 @@ async function checkAndRewardInteractions() {
         }
 
         // Kontrollera kommentarer
-        if (interactions.comments && interactions.comments.data) {
-          for (const comment of interactions.comments.data) {
-            const username = comment.from.username;
+if (interactions.comments && interactions.comments.data) {
+  for (const comment of interactions.comments.data) {
+    const username = comment.from.username;
 
-            const discordUser = Object.keys(userData.users).find(
-              (discordId) => userData.users[discordId].instagramUsername === username
-            );
+    const discordUser = Object.keys(userData.users).find(
+      (discordId) => userData.users[discordId].instagramUsername === username
+    );
 
-            if (discordUser) {
-              const user = userData.users[discordUser];
+    if (discordUser) {
+      const user = userData.users[discordUser];
 
-              const hasCommented = user.interactionHistory.some(
-                (interaction) => interaction.postId === postId && interaction.actions.includes('comment')
-              );
+      const hasCommented = user.interactionHistory.some(
+        (interaction) => interaction.postId === postId && interaction.actions.includes('comment')
+      );
 
-              if (!hasCommented) {
-                updateGCoins(discordUser, 2);
-                logInteraction(discordUser, postId, 'instagram', ['comment']);
-                console.log(`Belönade ${username} med 2 G-coins för kommentar på post ${postId}`);
-              }
-            }
-          }
-        }
-
-        // Uppdatera data.json efter varje belöning
-        saveUserData();
+      if (!hasCommented) {
+        updateGCoins(discordUser, 2);
+        logInteraction(discordUser, postId, 'instagram', ['comment']);
+        console.log(`Belönade ${username} med 2 G-coins för kommentar på post ${postId}`);
       }
     }
-  } catch (error) {
-    console.error('Ett fel uppstod när vi försökte hämta och belöna interaktioner:', error.response?.data || error.message);
   }
 }
 
+// Uppdatera data.json efter varje belöning
+saveUserData();
 // Logga in på boten
 if (!process.env.DISCORD_BOT_TOKEN) {
   console.error('FEL: DISCORD_BOT_TOKEN saknas. Boten kan inte logga in på Discord.');
