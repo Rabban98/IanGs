@@ -1,4 +1,4 @@
-require('dotenv').config(); // Läser in miljövariabler från .env-filen
+require('dotenv').config(); // Läser in miljövariabler från .env-filen (valfritt)
 const { Client, GatewayIntentBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
@@ -59,7 +59,6 @@ function getGCoins(discordId) {
 // Uppdatera G-coins
 function updateGCoins(discordId, coinsToAdd) {
   if (!userData.users[discordId]) return;
-
   userData.users[discordId].gCoins += coinsToAdd;
   saveUserData(); // Sparar ändringarna
 }
@@ -67,7 +66,6 @@ function updateGCoins(discordId, coinsToAdd) {
 // Logga en interaktion
 function logInteraction(discordId, postId, platform, actions) {
   if (!userData.users[discordId]) return;
-
   userData.users[discordId].interactionHistory.push({
     postId,
     platform,
@@ -79,13 +77,21 @@ function logInteraction(discordId, postId, platform, actions) {
 
 // Instagram API-inställningar
 const INSTAGRAM_API_BASE_URL = 'https://graph.instagram.com';
-const INSTAGRAM_APP_ID = process.env.INSTAGRAM_APP_ID; // Lägg till i .env
-const INSTAGRAM_APP_SECRET = process.env.INSTAGRAM_APP_SECRET; // Lägg till i .env
+const INSTAGRAM_APP_ID = process.env.INSTAGRAM_APP_ID; // Lägg till i miljövariabler
+const INSTAGRAM_APP_SECRET = process.env.INSTAGRAM_APP_SECRET; // Lägg till i miljövariabler
 let instagramAccessToken = null;
 
 // Hämta Instagram Access Token
 async function getInstagramAccessToken() {
   try {
+    // Kontrollera om INSTAGRAM_APP_ID och INSTAGRAM_APP_SECRET är satta
+    if (!INSTAGRAM_APP_ID || !INSTAGRAM_APP_SECRET) {
+      console.warn(
+        'VARNING: INSTAGRAM_APP_ID eller INSTAGRAM_APP_SECRET saknas. Instagram-integration kommer inte att fungera.'
+      );
+      return null; // Returnera null om variablerna saknas
+    }
+
     const response = await axios.post('https://api.instagram.com/oauth/access_token', null, {
       params: {
         client_id: INSTAGRAM_APP_ID,
@@ -107,14 +113,18 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 
 client.once('ready', async () => {
   console.log('Bot is online!');
-  try {
-    await getInstagramAccessToken(); // Hämta Instagram Access Token när boten startar
 
-    // Starta en timer för att regelbundet kontrollera interaktioner
-    setInterval(checkAndRewardInteractions, 5 * 60 * 1000); // Var 5:e minut
+  try {
+    await getInstagramAccessToken(); // Försök hämta Instagram Access Token
   } catch (error) {
-    console.error('Kunde inte starta boten:', error);
+    console.warn(
+      'VARNING: Kunde inte hämta Instagram Access Token. Instagram-integration kommer inte att fungera.',
+      error.message
+    );
   }
+
+  // Starta en timer för att regelbundet kontrollera interaktioner
+  setInterval(checkAndRewardInteractions, 5 * 60 * 1000); // Var 5:e minut
 });
 
 // Kommando för att visa G-coins-balans
@@ -122,7 +132,6 @@ client.on('messageCreate', async (message) => {
   if (message.content === '/min-balans') {
     const discordId = message.author.id;
     const gCoins = getGCoins(discordId);
-
     message.reply(`Din G-coins balans är: ${gCoins}`);
   }
 
@@ -150,11 +159,14 @@ client.on('messageCreate', async (message) => {
     addUser(discordId); // Se till att användaren finns i systemet
     userData.users[discordId].instagramUsername = username;
     saveUserData();
-
     message.reply(`Ditt Instagram-konto (${username}) har länkats till Discord.`);
   }
 
   if (message.content.startsWith('/ladda')) {
+    if (!instagramAccessToken) {
+      return message.reply('VARNING: Instagram-integration är inte aktiv just nu. Kontakta administratören för mer information.');
+    }
+
     const args = message.content.split(' ');
     const platform = args[1]; // Plattform: instagram
     const postUrl = args[2]; // URL till inlägget
@@ -198,6 +210,11 @@ client.on('messageCreate', async (message) => {
 // Funktion för att automatiskt belöna interaktioner
 async function checkAndRewardInteractions() {
   try {
+    if (!instagramAccessToken) {
+      console.warn('VARNING: Instagram Access Token saknas. Kan inte kontrollera interaktioner.');
+      return;
+    }
+
     for (const task of userData.activeTasks) {
       if (task.platform === 'instagram') {
         const postId = task.postId;
@@ -272,4 +289,13 @@ async function checkAndRewardInteractions() {
 }
 
 // Logga in på boten
-client.login(process.env.DISCORD_BOT_TOKEN); // Ersätt med din Discord-bot-token
+if (!process.env.DISCORD_BOT_TOKEN) {
+  console.error('FEL: DISCORD_BOT_TOKEN saknas. Boten kan inte logga in på Discord.');
+  process.exit(1); // Avsluta programmet om Discord-token saknas
+}
+
+// Logga in på boten
+client.login(process.env.DISCORD_BOT_TOKEN).catch((error) => {
+  console.error('FEL: Kunde inte logga in på Discord:', error.message);
+  process.exit(1); // Avsluta programmet om inloggningen misslyckas
+});
