@@ -1,0 +1,18 @@
+{
+  "name": "gcoin-bot",
+  "version": "1.0.0",
+  "description": "En Discord-bot för att hantera G-coins och Instagram-interaktioner.",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "discord.js": "^14.0.0",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.0"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}
