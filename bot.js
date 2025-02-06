@@ -123,7 +123,7 @@ app.get('/auth/callback', async (req, res) => {
         client_id: INSTAGRAM_APP_ID,
         client_secret: INSTAGRAM_APP_SECRET,
         grant_type: 'authorization_code',
-        redirect_uri: 'https://your-ngrok-url.ngrok-free.app/auth/callback', // Ersätt med din ngrok-URL
+        redirect_uri: 'https://iangs.onrender.com/auth/callback', // Din offentliga URL
         code: code,
       },
     });
@@ -345,12 +345,6 @@ async function checkAndRewardInteractions() {
   } catch (error) {
     console.error('Ett fel uppstod när vi försökte hämta och belöna interaktioner:', error.response?.data || error.message);
   }
-}
-
-// Logga in på boten
-if (!process.env.DISCORD_BOT_TOKEN) {
-  console.error('FEL: DISCORD_BOT_TOKEN saknas. Boten kan inte logga in på Discord.');
-  process.exit(1); // Avsluta programmet om Discord-token saknas
 }
 
 // Logga in på boten
