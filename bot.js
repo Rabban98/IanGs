@@ -64,64 +64,41 @@ client.on('messageCreate', async (message) => {
     userData.bootChannelId = message.channel.id;
     saveUserData();
   }
-});
 
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isButton()) return;
-  const userId = interaction.user.id;
-
-  if (interaction.customId === 'link_account') {
-    await interaction.deferUpdate();
-    const dmChannel = await interaction.user.createDM();
-    await dmChannel.send('Ange din Instagram-länk med `/länka <din-instagram-url>`.');
-  }
-
-  if (interaction.customId === 'wallet') {
-    const balance = userData.users[userId]?.gCoins || 0;
-    const embed = new EmbedBuilder()
-      .setTitle('Din G-Coin Wallet')
-      .setDescription(`Du har **${balance}** G-Coins!`)
-      .setColor('#FFD700');
-    
-    const reply = await interaction.reply({ embeds: [embed], flags: 64 });
-    setTimeout(() => reply.delete().catch(() => {}), 120000);
-  }
-
-  if (interaction.customId.startsWith('buy_')) {
-    const itemName = interaction.customId.replace('buy_', '');
-    const item = userData.marketItems.find(i => i.name === itemName);
-    if (!item) return interaction.reply({ content: 'Varan finns inte längre!', flags: 64 });
-    if (userData.users[userId].gCoins < item.price) {
-      return interaction.reply({ content: 'Du har inte tillräckligt med G-Coins!', flags: 64 });
-    }
-    userData.users[userId].gCoins -= item.price;
-    saveUserData();
-
-    const owner = await client.users.fetch(interaction.guild.ownerId);
-    await owner.send(`🔔 **${interaction.user.username}** har köpt **${itemName}** för **${item.price} G-Coins**!`);
-
-    await interaction.reply({ content: `Du har köpt **${itemName}**!`, flags: 64 });
-    setTimeout(() => interaction.deleteReply().catch(() => {}), 120000);
-  }
-});
-
-client.on('messageCreate', async (message) => {
-  if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-
-  if (message.content.startsWith('/add marknad')) {
-    if (message.author.id !== ownerId) return message.reply('Endast serverägaren kan lägga till varor.');
+  if (message.content.startsWith('/länka ')) {
     const args = message.content.split(' ');
-    if (args.length < 4) return message.reply('Använd `/add marknad <namn> <pris>`.');
+    if (args.length < 2) return message.reply('Ange din Instagram-länk.');
     
-    const itemName = args[2];
-    const itemPrice = parseInt(args[3]);
-    if (isNaN(itemPrice) || itemPrice <= 0) return message.reply('Priset måste vara ett positivt tal.');
+    const usernameMatch = args[1].match(/instagram\.com\/([\w._-]+)/);
+    if (!usernameMatch) return message.reply('Ogiltig Instagram-URL.');
     
-    userData.marketItems.push({ name: itemName, price: itemPrice });
+    addUser(message.author.id);
+    userData.users[message.author.id].instagramUsername = usernameMatch[1];
     saveUserData();
     
-    message.reply(`**${itemName}** har lagts till i marknaden för **${itemPrice} G-Coins**!`);
+    await message.reply(`Ditt Instagram-konto (${usernameMatch[1]}) har länkats!`);
+    
+    if (!userData.bootMessageId || !userData.bootChannelId) return;
+    try {
+      const channel = await client.channels.fetch(userData.bootChannelId);
+      const bootMessage = await channel.messages.fetch(userData.bootMessageId);
+    
+      const embed = new EmbedBuilder()
+        .setTitle('Välkommen till G-Coin Bot!')
+        .setDescription('Nya funktioner har låsts upp!')
+        .setImage('https://i.imgur.com/YOUR_NEW_IMAGE.png')
+        .setColor('#FFD700');
+    
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('wallet').setLabel('Wallet').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('market').setLabel('Marknad').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('raffle').setLabel('Raffle').setStyle(ButtonStyle.Secondary)
+      );
+    
+      await bootMessage.edit({ embeds: [embed], components: [row] });
+    } catch (error) {
+      console.error('Fel vid uppdatering av boot-meddelandet:', error);
+    }
   }
 });
 
