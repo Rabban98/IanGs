@@ -185,84 +185,190 @@ client.once('ready', async () => {
   setInterval(checkAndRewardInteractions, 5 * 60 * 1000); // Var 5:e minut
 });
 
+// Kommando för att visa G-coins-balans
+client.on('messageCreate', async (message) => {
+  if (message.content === '/min-balans') {
+    const discordId = message.author.id;
+    const gCoins = getGCoins(discordId);
+    message.reply(`Din G-coins balans är: ${gCoins}`);
+  }
+
+  if (message.content.startsWith('/länka')) {
+    const args = message.content.split(' ');
+    const platform = args[1]; // Plattform: instagram
+    const profileUrl = args[2];
+
+    if (!platform || !profileUrl) {
+      return message.reply('Ange plattform och profil-URL. Exempel: `/länka instagram https://www.instagram.com/min_instagram_profil`');
+    }
+
+    let username;
+    if (platform === 'instagram') {
+      const usernameMatch = profileUrl.match(/instagram\.com\/([\w._-]+)/);
+      if (!usernameMatch || !usernameMatch[1]) {
+        return message.reply('Ogiltig Instagram-URL. Se till att URL:en innehåller ett giltigt användarnamn.');
+      }
+      username = usernameMatch[1];
+    } else {
+      return message.reply('Ogiltig plattform. Använd `instagram`.');
+    }
+
+    const discordId = message.author.id;
+    addUser(discordId); // Se till att användaren finns i systemet
+    userData.users[discordId].instagramUsername = username;
+    saveUserData();
+    message.reply(`Ditt Instagram-konto (${username}) har länkats till Discord.`);
+  }
+
+  if (message.content.startsWith('/ladda')) {
+    if (!instagramAccessToken) {
+      return message.reply('VARNING: Instagram-integration är inte aktiv just nu. Kontakta administratören för mer information.');
+    }
+
+    const args = message.content.split(' ');
+    const platform = args[1]; // Plattform: instagram
+    const postUrl = args[2]; // URL till inlägget
+
+    if (!platform || !postUrl) {
+      return message.reply('Ange plattform och URL. Exempel: `/ladda instagram https://www.instagram.com/p/C1234567890/`');
+    }
+
+    let postId;
+    if (platform === 'instagram') {
+      const postIdMatch = postUrl.match(/\/p\/([a-zA-Z0-9_-]+)/);
+      if (!postIdMatch || !postIdMatch[1]) {
+        return message.reply('Ogiltig Instagram-inläggs-URL. Se till att URL:en innehåller ett giltigt Post-ID.');
+      }
+      postId = postIdMatch[1];
+    } else {
+      return message.reply('Ogiltig plattform. Använd `instagram`.');
+    }
+
+    if (!userData.activeTasks.some((task) => task.postId === postId && task.platform === platform)) {
+      userData.activeTasks.push({ postId, platform, reward: 5 }); // Standardbelöning: 5 G-coins
+      saveUserData();
+    }
+
+    message.reply(`Inlägg har laddats upp! Plattform: ${platform}, Post-ID: ${postId}\nGå in på detta inlägg och interagera för att tjäna G-coins!`);
+  }
+
+  if (message.content.startsWith('/uppgifter')) {
+    if (userData.activeTasks.length === 0) {
+      return message.reply('Det finns inga aktiva uppgifter just nu.');
+    }
+
+    const tasksList = userData.activeTasks
+      .map((task) => `Plattform: ${task.platform}, Post-ID: ${task.postId} - Belöning: ${task.reward} G-coins`)
+      .join('\n');
+
+    message.reply(`Aktiva uppgifter:\n${tasksList}`);
+  }
+
+  if (message.content === '/start' && message.member.permissions.has('Administrator')) {
+    const embed = new EmbedBuilder()
+      .setTitle('Välkommen till G-Coin Bot!')
+      .setDescription('Tryck på knapparna nedan för att börja.')
+      .setImage('https://i.imgur.com/eyvdfEw.png') // Logga-länk här
+      .setColor('#FFD700'); // Gul färg för embed
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('link_account')
+        .setLabel('Länka')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('balance')
+        .setLabel('Balance')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true), // Inaktiverad tills användaren har länkat sitt konto
+      new ButtonBuilder()
+        .setCustomId('market')
+        .setLabel('Market')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId('raffle')
+        .setLabel('Raffle')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true)
+    );
+
+    await message.channel.send({ embeds: [embed], components: [row] });
+  }
+});
+
 // Hantera knapptryckningar
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   const userId = interaction.user.id;
 
-  // Svara direkt på interaktionen för att undvika timeout
-  await interaction.deferReply({ ephemeral: true });
-
   switch (interaction.customId) {
     case 'link_account': {
-      try {
-        const dmChannel = await interaction.user.createDM();
-        await dmChannel.send('Ange din Instagram-länk här. Exempel: `https://www.instagram.com/dittanvandarnamn`');
+      await interaction.deferReply({ ephemeral: true });
 
-        const filter = (m) => m.author.id === userId;
-        const collected = await dmChannel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+      const dmChannel = await interaction.user.createDM();
+      await dmChannel.send('Ange din Instagram-länk här. Exempel: `https://www.instagram.com/dittanvandarnamn`');
 
-        const instagramLink = collected.first().content;
-        const usernameMatch = instagramLink.match(/instagram\.com\/([\w._-]+)/);
+      const filter = (m) => m.author.id === userId;
+      const collected = await dmChannel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
 
-        if (!usernameMatch || !usernameMatch[1]) {
-          await dmChannel.send('Ogiltig Instagram-länk. Försök igen.');
-          await interaction.editReply({ content: 'Länkningen misslyckades. Försök igen.', ephemeral: true });
-          return;
-        }
+      const instagramLink = collected.first().content;
+      const usernameMatch = instagramLink.match(/instagram\.com\/([\w._-]+)/);
 
-        const username = usernameMatch[1];
-        addUser(userId);
-        userData.users[userId].instagramUsername = username;
-        saveUserData();
-
-        await dmChannel.send(`Ditt Instagram-konto (${username}) har länkats!`);
-        await interaction.editReply({ content: `Ditt Instagram-konto (${username}) har länkats!`, ephemeral: true });
-
-        const updatedRow = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId('balance')
-            .setLabel('Balance')
-            .setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder()
-            .setCustomId('market')
-            .setLabel('Market')
-            .setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder()
-            .setCustomId('raffle')
-            .setLabel('Raffle')
-            .setStyle(ButtonStyle.Secondary)
-        );
-
-        await interaction.message.edit({
-          embeds: [new EmbedBuilder().setTitle('Välkommen till G-Coin Bot!').setDescription('Tryck på knapparna nedan för att börja.').setImage('https://i.imgur.com/eyvdfEw.png').setColor('#FFD700')],
-          components: [updatedRow],
-        });
-      } catch (error) {
-        console.error('Ett fel uppstod vid länkning:', error.message);
-        await interaction.editReply({ content: 'Ett fel uppstod vid länkning. Försök igen.', ephemeral: true });
+      if (!usernameMatch || !usernameMatch[1]) {
+        await dmChannel.send('Ogiltig Instagram-länk. Försök igen.');
+        await interaction.editReply({ content: 'Länkningen misslyckades. Försök igen.', ephemeral: true });
+        return;
       }
+
+      const username = usernameMatch[1];
+      addUser(userId);
+      userData.users[userId].instagramUsername = username;
+      saveUserData();
+
+      await dmChannel.send(`Ditt Instagram-konto (${username}) har länkats!`);
+      await interaction.editReply({ content: `Ditt Instagram-konto (${username}) har länkats!`, ephemeral: true });
+
+      const updatedRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('balance')
+          .setLabel('Balance')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId('market')
+          .setLabel('Market')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId('raffle')
+          .setLabel('Raffle')
+          .setStyle(ButtonStyle.Secondary)
+      );
+
+      await interaction.message.edit({
+        embeds: [new EmbedBuilder().setTitle('Välkommen till G-Coin Bot!').setDescription('Tryck på knapparna nedan för att börja.').setImage('https://i.imgur.com/eyvdfEw.png').setColor('#FFD700')],
+        components: [updatedRow],
+      });
       break;
     }
 
     case 'balance': {
       const user = userData.users[userId];
       if (!user) {
-        await interaction.editReply({ content: 'Du måste länka ditt Instagram-konto först.', ephemeral: true });
+        await interaction.reply({ content: 'Du måste länka ditt Instagram-konto först.', ephemeral: true });
         return;
       }
-      await interaction.editReply({ content: `Din G-coins balans är: ${user.gCoins}`, ephemeral: true });
+      await interaction.reply({ content: `Din G-coins balans är: ${user.gCoins}`, ephemeral: true });
       break;
     }
 
     case 'market': {
-      await interaction.editReply({ content: 'Marknad funktionen är inte implementerad än.', ephemeral: true });
+      await interaction.reply({ content: 'Marknad funktionen är inte implementerad än.', ephemeral: true });
       break;
     }
 
     case 'raffle': {
-      await interaction.editReply({ content: 'Lotteri funktionen är inte implementerad än.', ephemeral: true });
+      await interaction.reply({ content: 'Lotteri funktionen är inte implementerad än.', ephemeral: true });
       break;
     }
 
@@ -363,3 +469,4 @@ client.login(process.env.DISCORD_BOT_TOKEN).catch((error) => {
   console.error('FEL: Kunde inte logga in på Discord:', error.message);
   process.exit(1); // Avsluta programmet om inloggningen misslyckas
 });
+
