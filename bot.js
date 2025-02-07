@@ -78,30 +78,115 @@ function logInteraction(discordId, postId, platform, actions) {
   saveUserData(); // Sparar ändringarna
 }
 
+// Instagram API-inställningar
+const INSTAGRAM_API_BASE_URL = 'https://graph.instagram.com';
+const INSTAGRAM_APP_ID = process.env.INSTAGRAM_APP_ID; // Lägg till i miljövariabler
+const INSTAGRAM_APP_SECRET = process.env.INSTAGRAM_APP_SECRET; // Lägg till i miljövariabler
+let instagramAccessToken = null;
+
+// Hämta Instagram Access Token
+async function getInstagramAccessToken() {
+  try {
+    // Kontrollera om INSTAGRAM_APP_ID och INSTAGRAM_APP_SECRET är satta
+    if (!INSTAGRAM_APP_ID || !INSTAGRAM_APP_SECRET) {
+      console.warn(
+        'VARNING: INSTAGRAM_APP_ID eller INSTAGRAM_APP_SECRET saknas. Instagram-integration kommer inte att fungera.'
+      );
+      return null; // Returnera null om variablerna saknas
+    }
+
+    const response = await axios.post('https://api.instagram.com/oauth/access_token', null, {
+      params: {
+        client_id: INSTAGRAM_APP_ID,
+        client_secret: INSTAGRAM_APP_SECRET,
+        grant_type: 'client_credentials',
+      },
+    });
+
+    instagramAccessToken = response.data.access_token;
+    console.log('Instagram Access Token har hämtats.');
+  } catch (error) {
+    console.error('Kunde inte hämta Instagram Access Token:', error.response?.data || error.message);
+    throw error;
+  }
+}
+
+// Route för att hantera Instagram OAuth-callback
+app.get('/auth/callback', async (req, res) => {
+  const code = req.query.code; // Hämta "code" från query-parametrar
+
+  try {
+    // Byt ut "code" mot en Access Token
+    const response = await axios.post('https://api.instagram.com/oauth/access_token', null, {
+      params: {
+        client_id: INSTAGRAM_APP_ID,
+        client_secret: INSTAGRAM_APP_SECRET,
+        grant_type: 'authorization_code',
+        redirect_uri: 'https://iangs.onrender.com/auth/callback', // Din offentliga URL
+        code: code,
+      },
+    });
+
+    const accessToken = response.data.access_token;
+    console.log('Access Token:', accessToken);
+    res.send('Du har lyckats länka ditt Instagram-konto!');
+  } catch (error) {
+    console.error('Ett fel uppstod vid hämtning av Access Token:', error.response?.data || error.message);
+    res.status(500).send('Ett fel uppstod.');
+  }
+});
+
+// Route för att hantera Verify Token
+const VERIFY_TOKEN = 'borje_balder123'; // Uppdaterat Verify Token
+app.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  // Verifiera att token matchar
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    console.log('Webhook verifierad.');
+    res.status(200).send(challenge); // Skicka tillbaka challenge för att bekräfta
+  } else {
+    console.error('Verify Token matchade inte.');
+    res.status(403).send('Verify Token matchade inte.');
+  }
+});
+
+// Dummy-route för att hålla servern igång
+app.get('/', (req, res) => {
+  res.send('Bot is running!');
+});
+
+// Ange porten som servern ska lyssna på
+const PORT = process.env.PORT || 3000;
+
+// Starta servern
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
+
 // Skapa Discord-klienten
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 
 client.once('ready', async () => {
   console.log('Bot is online!');
+  try {
+    await getInstagramAccessToken(); // Försök hämta Instagram Access Token
+  } catch (error) {
+    console.warn(
+      'VARNING: Kunde inte hämta Instagram Access Token. Instagram-integration kommer inte att fungera.',
+      error.message
+    );
+  }
 });
 
-// Kommando för att starta processen
+// Kommando för att visa G-coins-balans
 client.on('messageCreate', async (message) => {
-  if (message.content === '/boot' && message.member.permissions.has('Administrator')) {
-    const embed = new EmbedBuilder()
-      .setTitle('Välkommen till G-Coin Bot!')
-      .setDescription('Tryck på knappen nedan för att börja.')
-      .setImage('https://i.imgur.com/eyvdfEw.png') // Logga-länk här
-      .setColor('#FFD700'); // Gul färg för embed
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('link_account')
-        .setLabel('Länka')
-        .setStyle(ButtonStyle.Primary)
-    );
-
-    await message.channel.send({ embeds: [embed], components: [row] });
+  if (message.content === '/min-balans') {
+    const discordId = message.author.id;
+    const gCoins = getGCoins(discordId);
+    message.reply(`Din G-coins balans är: ${gCoins}`);
   }
 
   if (message.content.startsWith('/länka')) {
@@ -124,13 +209,49 @@ client.on('messageCreate', async (message) => {
     userData.users[discordId].instagramUsername = username;
     saveUserData();
 
-    await message.reply(`Ditt Instagram-konto (${username}) har länkats!`);
+    message.reply(`Ditt Instagram-konto (${username}) har länkats till Discord.`);
+  }
+});
 
-    // Aktivera knapparna i Discord
-    const channel = message.channel;
-    const lastMessage = await channel.messages.fetch({ limit: 1 }).then((messages) => messages.first());
+// Hantera knapptryckningar
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isButton()) return;
 
-    if (lastMessage && lastMessage.embeds.length > 0) {
+  const userId = interaction.user.id;
+
+  switch (interaction.customId) {
+    case 'link_account': {
+      await interaction.reply({ content: 'Kolla dina privata meddelanden!', ephemeral: true });
+
+      const dmChannel = await interaction.user.createDM();
+      await dmChannel.send('Ange din Instagram-länk här. Exempel: `/länka https://www.instagram.com/dittanvandarnamn`.');
+
+      const filter = (m) => m.author.id === userId && m.content.startsWith('/länka');
+      const collected = await dmChannel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+
+      const message = collected.first();
+      const args = message.content.split(' ');
+      const profileUrl = args[1];
+
+      if (!profileUrl) {
+        await dmChannel.send('Ogiltig format. Använd formatet `/länka https://www.instagram.com/dittanvandarnamn`.');
+        return;
+      }
+
+      const usernameMatch = profileUrl.match(/instagram\.com\/([\w._-]+)/);
+      if (!usernameMatch || !usernameMatch[1]) {
+        await dmChannel.send('Ogiltig Instagram-URL. Se till att URL:en innehåller ett giltigt användarnamn.');
+        return;
+      }
+
+      const username = usernameMatch[1];
+      addUser(userId);
+      userData.users[userId].instagramUsername = username;
+      saveUserData();
+
+      await dmChannel.send(`Ditt Instagram-konto (${username}) har länkats!`);
+
+      // Aktivera knappar i Discord
       const updatedRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId('balance')
@@ -146,26 +267,10 @@ client.on('messageCreate', async (message) => {
           .setStyle(ButtonStyle.Secondary)
       );
 
-      await lastMessage.edit({
+      await interaction.message.edit({
         embeds: [new EmbedBuilder().setTitle('Välkommen till G-Coin Bot!').setDescription('Tryck på knapparna nedan för att börja.').setImage('https://i.imgur.com/eyvdfEw.png').setColor('#FFD700')],
         components: [updatedRow],
       });
-    }
-  }
-});
-
-// Hantera knapptryckningar
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isButton()) return;
-
-  const userId = interaction.user.id;
-
-  switch (interaction.customId) {
-    case 'link_account': {
-      await interaction.reply({ content: 'Kolla dina privata meddelanden!', ephemeral: true });
-
-      const dmChannel = await interaction.user.createDM();
-      await dmChannel.send('Länka ditt Instagram-konto med `/länka https://www.instagram.com/dittanvandarnamn`.');
 
       break;
     }
