@@ -191,70 +191,78 @@ client.on('interactionCreate', async (interaction) => {
 
   const userId = interaction.user.id;
 
+  // Svara direkt på interaktionen för att undvika timeout
+  await interaction.deferReply({ ephemeral: true });
+
   switch (interaction.customId) {
     case 'link_account': {
-      await interaction.reply({ content: 'Kolla dina privata meddelanden!', ephemeral: true });
+      try {
+        const dmChannel = await interaction.user.createDM();
+        await dmChannel.send('Ange din Instagram-länk här. Exempel: `https://www.instagram.com/dittanvandarnamn`');
 
-      const dmChannel = await interaction.user.createDM();
-      await dmChannel.send('Ange din Instagram-länk här. Exempel: `https://www.instagram.com/dittanvandarnamn`');
+        const filter = (m) => m.author.id === userId;
+        const collected = await dmChannel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
 
-      const filter = (m) => m.author.id === userId;
-      const collected = await dmChannel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+        const instagramLink = collected.first().content;
+        const usernameMatch = instagramLink.match(/instagram\.com\/([\w._-]+)/);
 
-      const instagramLink = collected.first().content;
-      const usernameMatch = instagramLink.match(/instagram\.com\/([\w._-]+)/);
+        if (!usernameMatch || !usernameMatch[1]) {
+          await dmChannel.send('Ogiltig Instagram-länk. Försök igen.');
+          await interaction.editReply({ content: 'Länkningen misslyckades. Försök igen.', ephemeral: true });
+          return;
+        }
 
-      if (!usernameMatch || !usernameMatch[1]) {
-        await dmChannel.send('Ogiltig Instagram-länk. Se till att URL:en innehåller ett giltigt användarnamn.');
-        return;
+        const username = usernameMatch[1];
+        addUser(userId);
+        userData.users[userId].instagramUsername = username;
+        saveUserData();
+
+        await dmChannel.send(`Ditt Instagram-konto (${username}) har länkats!`);
+        await interaction.editReply({ content: `Ditt Instagram-konto (${username}) har länkats!`, ephemeral: true });
+
+        const updatedRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('balance')
+            .setLabel('Balance')
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId('market')
+            .setLabel('Market')
+            .setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder()
+            .setCustomId('raffle')
+            .setLabel('Raffle')
+            .setStyle(ButtonStyle.Secondary)
+        );
+
+        await interaction.message.edit({
+          embeds: [new EmbedBuilder().setTitle('Välkommen till G-Coin Bot!').setDescription('Tryck på knapparna nedan för att börja.').setImage('https://i.imgur.com/eyvdfEw.png').setColor('#FFD700')],
+          components: [updatedRow],
+        });
+      } catch (error) {
+        console.error('Ett fel uppstod vid länkning:', error.message);
+        await interaction.editReply({ content: 'Ett fel uppstod vid länkning. Försök igen.', ephemeral: true });
       }
-
-      const username = usernameMatch[1];
-      addUser(userId);
-      userData.users[userId].instagramUsername = username;
-      saveUserData();
-
-      await dmChannel.send(`Ditt Instagram-konto (${username}) har länkats!`);
-
-      const updatedRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId('balance')
-          .setLabel('Balance')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId('market')
-          .setLabel('Market')
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId('raffle')
-          .setLabel('Raffle')
-          .setStyle(ButtonStyle.Secondary)
-      );
-
-      await interaction.message.edit({
-        embeds: [new EmbedBuilder().setTitle('Välkommen till G-Coin Bot!').setDescription('Tryck på knapparna nedan för att börja.').setImage('https://i.imgur.com/eyvdfEw.png').setColor('#FFD700')],
-        components: [updatedRow],
-      });
       break;
     }
 
     case 'balance': {
       const user = userData.users[userId];
       if (!user) {
-        await interaction.reply({ content: 'Du måste länka ditt Instagram-konto först.', ephemeral: true });
+        await interaction.editReply({ content: 'Du måste länka ditt Instagram-konto först.', ephemeral: true });
         return;
       }
-      await interaction.reply({ content: `Din G-coins balans är: ${user.gCoins}`, ephemeral: true });
+      await interaction.editReply({ content: `Din G-coins balans är: ${user.gCoins}`, ephemeral: true });
       break;
     }
 
     case 'market': {
-      await interaction.reply({ content: 'Marknad funktionen är inte implementerad än.', ephemeral: true });
+      await interaction.editReply({ content: 'Marknad funktionen är inte implementerad än.', ephemeral: true });
       break;
     }
 
     case 'raffle': {
-      await interaction.reply({ content: 'Lotteri funktionen är inte implementerad än.', ephemeral: true });
+      await interaction.editReply({ content: 'Lotteri funktionen är inte implementerad än.', ephemeral: true });
       break;
     }
 
