@@ -41,14 +41,16 @@ client.on('messageCreate', async (message) => {
     const embed = new EmbedBuilder()
       .setTitle('Välkommen till G-Coin Bot!')
       .setDescription('Tryck på knappen nedan för att länka ditt Instagram-konto.')
-      .setImage('https://i.imgur.com/eyvdfEw.png')
+      .setImage('https://i.imgur.com/YOUR_NEW_IMAGE.png')
       .setColor('#FFD700');
     
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('link_account').setLabel('Länka').setStyle(ButtonStyle.Primary)
     );
 
-    await message.channel.send({ embeds: [embed], components: [row] });
+    const sentMessage = await message.channel.send({ embeds: [embed], components: [row] });
+    userData.bootMessageId = sentMessage.id; // Spara meddelande-ID för uppdatering senare
+    saveUserData();
   }
 });
 
@@ -77,10 +79,14 @@ client.on('messageCreate', async (message) => {
     
     await message.reply(`Ditt Instagram-konto (${usernameMatch[1]}) har länkats!`);
     
+    if (!userData.bootMessageId) return;
+    const channel = await client.channels.fetch(message.guildId);
+    const bootMessage = await channel.messages.fetch(userData.bootMessageId);
+    
     const embed = new EmbedBuilder()
       .setTitle('Välkommen till G-Coin Bot!')
       .setDescription('Nya funktioner har låsts upp!')
-      .setImage('https://i.imgur.com/eyvdfEw.png')
+      .setImage('https://i.imgur.com/YOUR_NEW_IMAGE.png')
       .setColor('#FFD700');
     
     const row = new ActionRowBuilder().addComponents(
@@ -89,11 +95,7 @@ client.on('messageCreate', async (message) => {
       new ButtonBuilder().setCustomId('raffle').setLabel('Raffle').setStyle(ButtonStyle.Secondary)
     );
 
-    if (message.guild) {
-      await message.guild.systemChannel.send({ embeds: [embed], components: [row] });
-    } else {
-      console.error('Kan inte skicka uppdatering, message.guild är null.');
-    }
+    await bootMessage.edit({ embeds: [embed], components: [row] });
   }
 });
 
