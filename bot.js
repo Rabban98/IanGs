@@ -48,6 +48,25 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 
 client.once('ready', () => console.log('Bot is online!'));
 
+client.on('messageCreate', async (message) => {
+  if (message.content === '/boot') {
+    const embed = new EmbedBuilder()
+      .setTitle('Välkommen till G-Coin Bot!')
+      .setDescription('Tryck på knappen nedan för att länka ditt Instagram-konto.')
+      .setImage('https://i.imgur.com/YOUR_NEW_IMAGE.png')
+      .setColor('#FFD700');
+    
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('link_account').setLabel('Länka').setStyle(ButtonStyle.Primary)
+    );
+
+    const sentMessage = await message.channel.send({ embeds: [embed], components: [row] });
+    userData.bootMessageId = sentMessage.id;
+    userData.bootChannelId = message.channel.id;
+    saveUserData();
+  }
+});
+
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
   const userId = interaction.user.id;
@@ -119,3 +138,4 @@ client.on('messageCreate', async (message) => {
 });
 
 client.login(process.env.DISCORD_BOT_TOKEN);
+
