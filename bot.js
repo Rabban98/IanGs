@@ -25,7 +25,7 @@ function loadUserData() {
     if (!parsedData.activeTasks) parsedData.activeTasks = [];
     return parsedData;
   } catch {
-    return { users: {}, activeTasks: [] };
+    return { users: {}, activeTasks: [], raffles: [], marketItems: [] };
   }
 }
 
@@ -74,6 +74,41 @@ client.on('interactionCreate', async (interaction) => {
     const dmChannel = await interaction.user.createDM();
     await dmChannel.send('Ange din Instagram-länk med `/länka <din-instagram-url>`.');
   }
+
+  if (interaction.customId === 'wallet') {
+    const balance = userData.users[userId]?.gCoins || 0;
+    const embed = new EmbedBuilder()
+      .setTitle('Din G-Coin Wallet')
+      .setDescription(`Du har **${balance}** G-Coins!`)
+      .setColor('#FFD700');
+    
+    const reply = await interaction.reply({ embeds: [embed], ephemeral: true });
+    setTimeout(() => reply.delete().catch(() => {}), 180000);
+  }
+
+  if (interaction.customId === 'raffle') {
+    if (userData.raffles.length === 0) {
+      const embed = new EmbedBuilder()
+        .setTitle('Inga aktiva Raffles')
+        .setDescription('Det finns inga aktiva raffles just nu.')
+        .setColor('#FF0000');
+      
+      const reply = await interaction.reply({ embeds: [embed], ephemeral: true });
+      setTimeout(() => reply.delete().catch(() => {}), 180000);
+    }
+  }
+
+  if (interaction.customId === 'market') {
+    if (userData.marketItems.length === 0) {
+      const embed = new EmbedBuilder()
+        .setTitle('Marknaden är tom')
+        .setDescription('Just nu finns det inga varor på marknaden.')
+        .setColor('#808080');
+      
+      const reply = await interaction.reply({ embeds: [embed], ephemeral: true });
+      setTimeout(() => reply.delete().catch(() => {}), 180000);
+    }
+  }
 });
 
 client.on('messageCreate', async (message) => {
@@ -102,7 +137,7 @@ client.on('messageCreate', async (message) => {
         .setColor('#FFD700');
     
       const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('balance').setLabel('Wallet').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('wallet').setLabel('Wallet').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('market').setLabel('Marknad').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('raffle').setLabel('Raffle').setStyle(ButtonStyle.Secondary)
       );
