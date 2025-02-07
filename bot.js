@@ -57,16 +57,9 @@ client.on('interactionCreate', async (interaction) => {
   const userId = interaction.user.id;
 
   if (interaction.customId === 'link_account') {
-    await interaction.reply({ content: 'Kolla dina privata meddelanden!', ephemeral: true });
+    await interaction.deferUpdate();
     const dmChannel = await interaction.user.createDM();
     await dmChannel.send('Ange din Instagram-länk med `/länka <din-instagram-url>`.');
-  }
-
-  if (interaction.customId === 'balance' || interaction.customId === 'market' || interaction.customId === 'raffle') {
-    if (!userData.users[userId]?.instagramUsername) {
-      return await interaction.reply({ content: 'Du måste länka ditt Instagram-konto först.', ephemeral: true });
-    }
-    await interaction.reply({ content: `Funktion: ${interaction.customId} är på väg!`, ephemeral: true });
   }
 });
 
@@ -96,8 +89,10 @@ client.on('messageCreate', async (message) => {
       new ButtonBuilder().setCustomId('raffle').setLabel('Raffle').setStyle(ButtonStyle.Secondary)
     );
 
-    await message.channel.send({ embeds: [embed], components: [row] });
+    const guildChannel = await client.channels.fetch(message.guildId);
+    await guildChannel.send({ embeds: [embed], components: [row] });
   }
 });
 
 client.login(process.env.DISCORD_BOT_TOKEN);
+
