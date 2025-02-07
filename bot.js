@@ -43,7 +43,7 @@ function addUser(discordId) {
   }
 }
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages], partials: ['CHANNEL'] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages], partials: ['CHANNEL', 'MESSAGE', 'USER'] });
 
 client.once('ready', () => console.log('Bot is online!'));
 
@@ -64,8 +64,26 @@ client.on('messageCreate', async (message) => {
     userData.bootChannelId = message.channel.id;
     saveUserData();
   }
+});
 
-  if (message.content.startsWith('/länka ')) {
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isButton()) return;
+  const userId = interaction.user.id;
+
+  if (interaction.customId === 'link_account') {
+    await interaction.reply({ content: 'Kolla dina DM för att länka ditt Instagram-konto.', ephemeral: true });
+    try {
+      const dmChannel = await interaction.user.createDM();
+      await dmChannel.send('Ange din Instagram-länk med `/länka <din-instagram-url>`.');
+    } catch (error) {
+      console.error('Kunde inte skicka DM:', error);
+      await interaction.followUp({ content: 'Kunde inte skicka ett DM. Se till att du har DM aktiverat!', ephemeral: true });
+    }
+  }
+});
+
+client.on('messageCreate', async (message) => {
+  if (message.channel.isDMBased() && message.content.startsWith('/länka ')) {
     const args = message.content.split(' ');
     if (args.length < 2) return message.reply('Ange din Instagram-länk.');
     
