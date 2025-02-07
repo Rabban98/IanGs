@@ -32,7 +32,7 @@ function addUser(discordId) {
   }
 }
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages], partials: ['CHANNEL'] });
 
 client.once('ready', () => console.log('Bot is online!'));
 
@@ -71,7 +71,7 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 client.on('messageCreate', async (message) => {
-  if (message.content.startsWith('/länka')) {
+  if (message.channel.type === 1 && message.content.startsWith('/länka')) {
     const args = message.content.split(' ');
     if (args.length < 2) return message.reply('Ange din Instagram-länk.');
     
