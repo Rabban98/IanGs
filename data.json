@@ -1,4 +1,26 @@
 {
-  "users": {},
-  "activeTasks": []
+  "users": {
+    "478210214907084800": {
+      "instagramUsername": "rabbster98",
+      "gCoins": 0
+    }
+  },
+  "activeTasks": [],
+  "raffles": [],
+  "marketItems": [
+    {
+      "name": "Datormus",
+      "price": 999,
+      "stock": 5,
+      "image": "https://cdn.discordapp.com/attachments/1326227907743318016/1337462465579061298/G-coin.webp?ex=67a7887c&is=67a636fc&hm=617a8291439c5b609dee58dff04b72d38bf3a6ff3a5f22fc78f6d7f24da380be&"
+    },
+    {
+      "name": "Solbrillor",
+      "price": 199,
+      "stock": 200,
+      "image": "https://cdn.discordapp.com/attachments/1326227907743318016/1337464615214252173/G-coin.webp?ex=67a78a7d&is=67a638fd&hm=b40296076cc694b60474501d53484d07d9fce5b29f1a9c173142b50d9ee36ead&"
+    }
+  ],
+  "bootMessageId": "1337465633129889864",
+  "bootChannelId": "1326227907743318016"
 }
