@@ -1,5 +1,5 @@
-require('dotenv').config(); // Läser in miljövariabler från .env-filen (valfritt)
-const { Client, GatewayIntentBits } = require('discord.js');
+require('dotenv').config(); // Läser in miljövariabler från .env-filen
+const { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const express = require('express');
 const axios = require('axios');
 const fs = require('fs');
@@ -266,6 +266,116 @@ client.on('messageCreate', async (message) => {
 
     message.reply(`Aktiva uppgifter:\n${tasksList}`);
   }
+
+  if (message.content === '/start' && message.member.permissions.has('Administrator')) {
+    const embed = new EmbedBuilder()
+      .setTitle('Välkommen till G-Coin Bot!')
+      .setDescription('Tryck på knapparna nedan för att börja.')
+      .setImage('https://i.imgur.com/eyvdfEw.png') // Logga-länk här
+      .setColor('#FFD700'); // Gul färg för embed
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('link_account')
+        .setLabel('Länka')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('balance')
+        .setLabel('Balance')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true), // Inaktiverad tills användaren har länkat sitt konto
+      new ButtonBuilder()
+        .setCustomId('market')
+        .setLabel('Market')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId('raffle')
+        .setLabel('Raffle')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(true)
+    );
+
+    await message.channel.send({ embeds: [embed], components: [row] });
+  }
+});
+
+// Hantera knapptryckningar
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isButton()) return;
+
+  const userId = interaction.user.id;
+
+  switch (interaction.customId) {
+    case 'link_account': {
+      await interaction.reply({ content: 'Kolla dina privata meddelanden!', ephemeral: true });
+
+      const dmChannel = await interaction.user.createDM();
+      await dmChannel.send('Ange din Instagram-länk här. Exempel: `https://www.instagram.com/dittanvandarnamn`');
+
+      const filter = (m) => m.author.id === userId;
+      const collected = await dmChannel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+
+      const instagramLink = collected.first().content;
+      const usernameMatch = instagramLink.match(/instagram\.com\/([\w._-]+)/);
+
+      if (!usernameMatch || !usernameMatch[1]) {
+        await dmChannel.send('Ogiltig Instagram-länk. Försök igen.');
+        return;
+      }
+
+      const username = usernameMatch[1];
+      addUser(userId);
+      userData.users[userId].instagramUsername = username;
+      saveUserData();
+
+      await dmChannel.send(`Ditt Instagram-konto (${username}) har länkats!`);
+
+      const updatedRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('balance')
+          .setLabel('Balance')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId('market')
+          .setLabel('Market')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId('raffle')
+          .setLabel('Raffle')
+          .setStyle(ButtonStyle.Secondary)
+      );
+
+      await interaction.message.edit({
+        embeds: [new EmbedBuilder().setTitle('Välkommen till G-Coin Bot!').setDescription('Tryck på knapparna nedan för att börja.').setImage('https://i.imgur.com/eyvdfEw.png').setColor('#FFD700')],
+        components: [updatedRow],
+      });
+      break;
+    }
+
+    case 'balance': {
+      const user = userData[userId];
+      if (!user) {
+        await interaction.reply({ content: 'Du måste länka ditt Instagram-konto först.', ephemeral: true });
+        return;
+      }
+      await interaction.reply({ content: `Din G-coins balans är: ${user.gCoins}`, ephemeral: true });
+      break;
+    }
+
+    case 'market': {
+      await interaction.reply({ content: 'Marknad funktionen är inte implementerad än.', ephemeral: true });
+      break;
+    }
+
+    case 'raffle': {
+      await interaction.reply({ content: 'Lotteri funktionen är inte implementerad än.', ephemeral: true });
+      break;
+    }
+
+    default:
+      break;
+  }
 });
 
 // Funktion för att automatiskt belöna interaktioner
@@ -316,33 +426,115 @@ async function checkAndRewardInteractions() {
         }
 
         // Kontrollera kommentarer
-if (interactions.comments && interactions.comments.data) {
-  for (const comment of interactions.comments.data) {
-    const username = comment.from.username;
+        if (interactions.comments && interactions.comments.data) {
+          for (const comment of interactions.comments.data) {
+            const username = comment.from.username;
 
-    const discordUser = Object.keys(userData.users).find(
-      (discordId) => userData.users[discordId].instagramUsername === username
-    );
+            const discordUser = Object.keys(userData.users).find(
+              (discordId) => userData.users[discordId].instagramUsername === username
+            );
 
-    if (discordUser) {
-      const user = userData.users[discordUser];
+            if (discordUser) {
+              const user = userData.users[discordUser];
 
-      const hasCommented = user.interactionHistory.some(
-        (interaction) => interaction.postId === postId && interaction.actions.includes('comment')
-      );
+              const hasCommented = user.interactionHistory.some(
+                (interaction) => interaction.postId === postId && interaction.actions.includes('comment')              if (!hasCommented) {
+                updateGCoins(discordUser, 2);
+                logInteraction(discordUser, postId, 'instagram', ['comment']);
+                console.log(`Belönade ${username} med 2 G-coins för kommentar på post ${postId}`);
+              }
+            }
+          }
+        }
 
-      if (!hasCommented) {
-        updateGCoins(discordUser, 2);
-        logInteraction(discordUser, postId, 'instagram', ['comment']);
-        console.log(`Belönade ${username} med 2 G-coins för kommentar på post ${postId}`);
+        // Uppdatera data.json efter varje belöning
+        saveUserData();
       }
+    } catch (error) {
+      console.error('Ett fel uppstod vid kontroll av interaktioner:', error.message);
     }
   }
-}
+});
 
-// Uppdatera data.json efter varje belöning
-saveUserData();
-// Logga in på boten
+// Hantera knapptryckningar
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isButton()) return;
+
+  const userId = interaction.user.id;
+
+  switch (interaction.customId) {
+    case 'link_account': {
+      await interaction.reply({ content: 'Kolla dina privata meddelanden!', ephemeral: true });
+
+      const dmChannel = await interaction.user.createDM();
+      await dmChannel.send('Ange din Instagram-länk här. Exempel: `https://www.instagram.com/dittanvandarnamn`');
+
+      const filter = (m) => m.author.id === userId;
+      const collected = await dmChannel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+
+      const instagramLink = collected.first().content;
+      const usernameMatch = instagramLink.match(/instagram\.com\/([\w._-]+)/);
+
+      if (!usernameMatch || !usernameMatch[1]) {
+        await dmChannel.send('Ogiltig Instagram-länk. Försök igen.');
+        return;
+      }
+
+      const username = usernameMatch[1];
+      addUser(userId);
+      userData.users[userId].instagramUsername = username;
+      saveUserData();
+
+      await dmChannel.send(`Ditt Instagram-konto (${username}) har länkats!`);
+
+      const updatedRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('balance')
+          .setLabel('Balance')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId('market')
+          .setLabel('Market')
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId('raffle')
+          .setLabel('Raffle')
+          .setStyle(ButtonStyle.Secondary)
+      );
+
+      await interaction.message.edit({
+        embeds: [new EmbedBuilder().setTitle('Välkommen till G-Coin Bot!').setDescription('Tryck på knapparna nedan för att börja.').setImage('https://i.imgur.com/eyvdfEw.png').setColor('#FFD700')],
+        components: [updatedRow],
+      });
+      break;
+    }
+
+    case 'balance': {
+      const user = userData[userId];
+      if (!user) {
+        await interaction.reply({ content: 'Du måste länka ditt Instagram-konto först.', ephemeral: true });
+        return;
+      }
+      await interaction.reply({ content: `Din G-coins balans är: ${user.gCoins}`, ephemeral: true });
+      break;
+    }
+
+    case 'market': {
+      await interaction.reply({ content: 'Marknad funktionen är inte implementerad än.', ephemeral: true });
+      break;
+    }
+
+    case 'raffle': {
+      await interaction.reply({ content: 'Lotteri funktionen är inte implementerad än.', ephemeral: true });
+      break;
+    }
+
+    default:
+      break;
+  }
+});
+
+// Logga in på Discord-boten
 if (!process.env.DISCORD_BOT_TOKEN) {
   console.error('FEL: DISCORD_BOT_TOKEN saknas. Boten kan inte logga in på Discord.');
   process.exit(1); // Avsluta programmet om Discord-token saknas
