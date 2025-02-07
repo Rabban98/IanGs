@@ -49,7 +49,8 @@ client.on('messageCreate', async (message) => {
     );
 
     const sentMessage = await message.channel.send({ embeds: [embed], components: [row] });
-    userData.bootMessageId = sentMessage.id; // Spara meddelande-ID för uppdatering senare
+    userData.bootMessageId = sentMessage.id;
+    userData.bootChannelId = message.channel.id;
     saveUserData();
   }
 });
@@ -66,7 +67,7 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 client.on('messageCreate', async (message) => {
-  if (message.channel.type === 1 && message.content.startsWith('/länka')) {
+  if (message.channel.isDMBased() && message.content.startsWith('/länka')) {
     const args = message.content.split(' ');
     if (args.length < 2) return message.reply('Ange din Instagram-länk.');
     
@@ -79,23 +80,27 @@ client.on('messageCreate', async (message) => {
     
     await message.reply(`Ditt Instagram-konto (${usernameMatch[1]}) har länkats!`);
     
-    if (!userData.bootMessageId) return;
-    const channel = await client.channels.fetch(message.guildId);
-    const bootMessage = await channel.messages.fetch(userData.bootMessageId);
+    if (!userData.bootMessageId || !userData.bootChannelId) return;
+    try {
+      const channel = await client.channels.fetch(userData.bootChannelId);
+      const bootMessage = await channel.messages.fetch(userData.bootMessageId);
     
-    const embed = new EmbedBuilder()
-      .setTitle('Välkommen till G-Coin Bot!')
-      .setDescription('Nya funktioner har låsts upp!')
-      .setImage('https://i.imgur.com/YOUR_NEW_IMAGE.png')
-      .setColor('#FFD700');
+      const embed = new EmbedBuilder()
+        .setTitle('Välkommen till G-Coin Bot!')
+        .setDescription('Nya funktioner har låsts upp!')
+        .setImage('https://i.imgur.com/YOUR_NEW_IMAGE.png')
+        .setColor('#FFD700');
     
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('balance').setLabel('Wallet').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('market').setLabel('Marknad').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('raffle').setLabel('Raffle').setStyle(ButtonStyle.Secondary)
-    );
-
-    await bootMessage.edit({ embeds: [embed], components: [row] });
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('balance').setLabel('Wallet').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('market').setLabel('Marknad').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('raffle').setLabel('Raffle').setStyle(ButtonStyle.Secondary)
+      );
+    
+      await bootMessage.edit({ embeds: [embed], components: [row] });
+    } catch (error) {
+      console.error('Fel vid uppdatering av boot-meddelandet:', error);
+    }
   }
 });
 
