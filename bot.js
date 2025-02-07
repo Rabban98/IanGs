@@ -48,25 +48,6 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 
 client.once('ready', () => console.log('Bot is online!'));
 
-client.on('messageCreate', async (message) => {
-  if (message.content === '/boot') {
-    const embed = new EmbedBuilder()
-      .setTitle('Välkommen till G-Coin Bot!')
-      .setDescription('Tryck på knappen nedan för att länka ditt Instagram-konto.')
-      .setImage('https://i.imgur.com/YOUR_NEW_IMAGE.png')
-      .setColor('#FFD700');
-    
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('link_account').setLabel('Länka').setStyle(ButtonStyle.Primary)
-    );
-
-    const sentMessage = await message.channel.send({ embeds: [embed], components: [row] });
-    userData.bootMessageId = sentMessage.id;
-    userData.bootChannelId = message.channel.id;
-    saveUserData();
-  }
-});
-
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
   const userId = interaction.user.id;
@@ -82,8 +63,20 @@ client.on('interactionCreate', async (interaction) => {
     setTimeout(() => reply.delete().catch(() => {}), 180000);
   }
 
+  if (interaction.customId === 'raffle') {
+    if ((userData.raffles?.length || 0) === 0) {
+      const embed = new EmbedBuilder()
+        .setTitle('Inga aktiva Raffles')
+        .setDescription('Det finns inga aktiva raffles just nu.')
+        .setColor('#FF0000');
+      
+      const reply = await interaction.reply({ embeds: [embed], flags: 64 });
+      setTimeout(() => reply.delete().catch(() => {}), 180000);
+    }
+  }
+
   if (interaction.customId === 'market') {
-    if (userData.marketItems.length === 0) {
+    if ((userData.marketItems?.length || 0) === 0) {
       const embed = new EmbedBuilder()
         .setTitle('Marknaden är tom')
         .setDescription('Just nu finns det inga varor på marknaden.')
@@ -91,51 +84,8 @@ client.on('interactionCreate', async (interaction) => {
       
       const reply = await interaction.reply({ embeds: [embed], flags: 64 });
       setTimeout(() => reply.delete().catch(() => {}), 180000);
-    } else {
-      let items = userData.marketItems.map(item => `**${item.name}** - ${item.price} G-Coins`).join('\n');
-      const embed = new EmbedBuilder()
-        .setTitle('Marknad')
-        .setDescription(items)
-        .setColor('#00FF00');
-      await interaction.reply({ embeds: [embed], flags: 64 });
     }
   }
 });
 
-client.on('messageCreate', async (message) => {
-  if (!message.guild) return;
-  const ownerId = message.guild.ownerId;
-
-  if (message.content.startsWith('/add marknad')) {
-    if (message.author.id !== ownerId) return message.reply('Endast serverägaren kan lägga till varor.');
-    const args = message.content.split(' ');
-    if (args.length < 4) return message.reply('Använd `/add marknad <namn> <pris>`.');
-    
-    const itemName = args[2];
-    const itemPrice = parseInt(args[3]);
-    if (isNaN(itemPrice) || itemPrice <= 0) return message.reply('Priset måste vara ett positivt tal.');
-    
-    userData.marketItems.push({ name: itemName, price: itemPrice });
-    saveUserData();
-    
-    message.reply(`**${itemName}** har lagts till i marknaden för **${itemPrice} G-Coins**!`);
-  }
-
-  if (message.content.startsWith('/tabort marknad')) {
-    if (message.author.id !== ownerId) return message.reply('Endast serverägaren kan ta bort varor.');
-    const args = message.content.split(' ');
-    if (args.length < 3) return message.reply('Använd `/tabort marknad <namn>`.');
-    
-    const itemName = args[2];
-    const index = userData.marketItems.findIndex(item => item.name === itemName);
-    if (index === -1) return message.reply('Varan hittades inte i marknaden.');
-    
-    userData.marketItems.splice(index, 1);
-    saveUserData();
-    
-    message.reply(`**${itemName}** har tagits bort från marknaden!`);
-  }
-});
-
 client.login(process.env.DISCORD_BOT_TOKEN);
-
