@@ -89,8 +89,11 @@ client.on('messageCreate', async (message) => {
       new ButtonBuilder().setCustomId('raffle').setLabel('Raffle').setStyle(ButtonStyle.Secondary)
     );
 
-    const guildChannel = await client.channels.fetch(message.guildId);
-    await guildChannel.send({ embeds: [embed], components: [row] });
+    if (message.guild) {
+      await message.guild.systemChannel.send({ embeds: [embed], components: [row] });
+    } else {
+      console.error('Kan inte skicka uppdatering, message.guild är null.');
+    }
   }
 });
 
