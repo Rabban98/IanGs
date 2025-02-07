@@ -264,7 +264,7 @@ client.on('messageCreate', async (message) => {
     message.reply(`Aktiva uppgifter:\n${tasksList}`);
   }
 
-  if (message.content === '/start' && message.member.permissions.has('Administrator')) {
+  if (message.content === '/boot' && message.member.permissions.has('Administrator')) {
     const embed = new EmbedBuilder()
       .setTitle('Välkommen till G-Coin Bot!')
       .setDescription('Tryck på knapparna nedan för att börja.')
